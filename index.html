@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kampfinsel Kampfrechner</title>
+<style>
+:root{--bg:#f6f4ee;--fg:#1d2430;--mut:#667085;--card:#fff;--line:#d9d4c7;--ok:#1a7f4b;--bad:#b42318;--warn:#b54708}
+@media (prefers-color-scheme:dark){:root{--bg:#14181f;--fg:#e6e9ef;--mut:#98a2b3;--card:#1c222c;--line:#2e3644;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:17px;margin:22px 0 8px}
+p.sub{color:var(--mut);margin:0 0 14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left;vertical-align:top}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+code{font-size:12px}
+footer{color:var(--mut);font-size:12px;margin-top:24px;border-top:1px solid var(--line);padding-top:10px}
+button{font:inherit;padding:4px 10px;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:6px;cursor:pointer}
+nav.tabs{display:flex;gap:6px;margin:10px 0}nav.tabs button.on{background:var(--fg);color:var(--bg)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media (max-width:760px){.cols{grid-template-columns:1fr}}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 10px;margin:6px 0}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--mut)}
+input[type=text],textarea,select{font:inherit;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);width:100%}
+textarea{min-height:90px;font-size:12px}
+label.chk{flex-direction:row;align-items:center;gap:6px;color:var(--fg);font-size:14px}
+.warnbox{border-color:var(--warn)}
+h3{font-size:14px;margin:12px 0 2px}
+</style>
+</head>
+<body>
+<main>
+<h1>Kampfinsel Kampfrechner</h1>
+<p class="sub">Eigenes Kampfmodell, kalibriert an echten Kampfberichten (Regeln: Handbuch v4.4.1, Stand 22.10.2026). Alle Eingaben bleiben im Browser.</p>
+<section id="panel_calc">
+<div id="calc" class="cols">
+<div class="card">
+<h2 style="margin-top:0">Angreifer (du)</h2>
+<h3>Schiffe</h3><div class="fields" id="a_ships"></div>
+<h3>Truppen</h3><div class="fields" id="a_troops"></div>
+<h3>Forschung</h3><div class="fields"><label>Speer-Stufe<input type="text" id="a_speer" value="10"></label><label>Bogen-Stufe<input type="text" id="a_bogen" value="10"></label>
+<label>Chaos (−5…+5 %)<input type="text" id="chaos" value="0"></label></div>
+<label class="chk"><input type="checkbox" id="conquest">Kolonisierung / Eroberung (alle Verteidigertruppen sterben)</label>
+</div>
+<div class="card">
+<h2 style="margin-top:0">Verteidiger</h2>
+<h3>Spähbericht einfügen</h3>
+<textarea id="spy_text" placeholder="Ganzen Text des Spähberichts hierher kopieren (Gebäude, Truppen, Schiffe, Ressourcen, Forschen)"></textarea>
+<div><button id="spy_btn">Einlesen</button> <span id="spy_info" class="sub"></span></div>
+<h3>Insel</h3>
+<div class="fields"><label>Hafen-Stufe<input type="text" id="d_hafen" value="0"></label><label>Steinmauer-Stufe<input type="text" id="d_mauer" value="0"></label>
+<label>Schild-Stufe<input type="text" id="d_schild" value="0"></label><label>Basis<input type="text" id="d_base" value="50"></label>
+<label>Lagerhaus-Stufe<input type="text" id="d_lager" value="0"></label></div>
+<label class="chk"><input type="checkbox" id="d_base_auto" checked>Basis aus Gebäuden schätzen</label>
+<label class="chk"><input type="checkbox" id="d_fixed">Feste Basis (Altreich/Einheimische: Mauer 40/Stufe, kein +15 %, keine Kapitulation)</label>
+<h3>Truppen</h3><div class="fields" id="d_troops"></div>
+<h3>Schiffe</h3><div class="fields" id="d_ships"></div>
+<h3>Vorrat im Lager</h3><div class="fields"><label>Gold<input type="text" id="d_gold" value="0"></label><label>Stein<input type="text" id="d_stone" value="0"></label><label>Holz<input type="text" id="d_wood" value="0"></label></div>
+<h3>Belagerung</h3><div class="fields"><label>Ziel<select id="d_siege"><option value="">(keine Belagerung)</option></select></label><label>Stufe<input type="text" id="d_siege_lv" value="0"></label></div>
+</div>
+</div>
+<div id="out"></div>
+</section>
+<footer id="foot"><b>Eigenes Kampfmodell</b>, kalibriert an echten Kampfberichten (Handbuch-Stand v4.4.1). <b>Verifiziert:</b> Seestärken, Sieger-Rechnung auf See, Hafenverteidigung, Landverteidigung (inkl. Verteidigervorteil +15 %, Mauer), Verlustformeln im Landkampf bei Angreifersieg, Kapitulation (4×), Katapulte, Tragekapazität, Beuteteilung, Beuteschutz, Treibgut; Schiffs- und Truppenwerte von Hafen/Militär. <b>Geschätzt:</b> Basis aus Gebäuden, Landverluste des Angreifers im mittleren Stärkeverhältnis, Landkampf bei Verteidigersieg, Abbruch nach verlorener Seeschlacht/Hafen. <b>Nicht modelliert:</b> Geordneter Rückzug, Beute-Dämpfung bei Folgeangriffen, Vergeltung, Wissens-Pläne, Verbandangriff, Korsaren-Festungen.</footer>
+</main>
+
+<script id="model">
+/* =====================================================================================
+   KAMPFMODELL  –  reine Funktionen, keine DOM-Zugriffe.
+   Jede Konstante trägt ihre Herkunft: [V n] = an n echten Berichten verifiziert,
+   [S] = Schätzung / Annahme, [F] = nur vom Fork (Jinnai) übernommen, ungeprüft.
+   Quellen: kampfinsel-rechner/notes/{land,sea,loot}-fit.md, data/fixtures.json
+   ===================================================================================== */
+const Model = (function () {
+
+  // ---- Einheiten & Schiffe -----------------------------------------------------------
+  // Angriff/Verteidigung = Grundwerte ohne Forschung. Verteidigung Land: +2 je Schild-Stufe [V 3]
+  // (Spionage-Bericht: Schild 10, Steinwerfer 28 = 8+20). Angriff: Speer +2, Bogen +3 je Stufe [V 2] (21.10.: 129.500).
+  const TROOPS = {
+    steinwerfer:  { name: 'Steinwerfer',  att: 5,  def: 8,  cap: 15, cost: { g: 30,  s: 50,  w: 20  } }, // att [V 1] 20.10., def [V 3], cap [V 3], cost [F]
+    speertraeger: { name: 'Speerträger',  att: 15, def: 25, cap: 25, cost: { g: 80,  s: 100, w: 60  } }, // att [V 2], cap [V 2]
+    bogenschuetze:{ name: 'Bogenschütze', att: 35, def: 10, cap: 10, cost: { g: 120, s: 50,  w: 150 } }, // att [V 2]
+    katapult:     { name: 'Katapult',     att: 10, def: 5,  cap: 0,  cost: { g: 300, s: 500, w: 200 } }  // att [V 2], keine Forschung auf Angriff
+  };
+  // war:true  = nimmt an Seeschlacht teil (Stärke + Verlustverteilung). Das Kolonisierungsschiff zählt mit (Angriff 30, Verteidigung 50) [V 1: 00e0ce8f 6030].
+  // KKS: att 20 [V 2: bfa4d9e9 9400, 129caae4], def 30 [V 3]; GKS: att 60 [V 5], def 80 [V 5]. Holzkosten KKS 300 / GKS 800 [V 12] (Treibgut).
+  const SHIPS = {
+    kkriegsschiff: { name: 'Kleines Kriegsschiff',  att: 20, def: 30, troops: 5,  war: true,  cap: 0,    cost: { g: 200,  s: 100,  w: 300  } },
+    gkriegsschiff: { name: 'Großes Kriegsschiff',   att: 60, def: 80, troops: 10, war: true,  cap: 0,    cost: { g: 600,  s: 300,  w: 800  } },
+    kolo:          { name: 'Kolonisierungsschiff',  att: 30, def: 50, troops: 0,  war: true,  cap: 0,    cost: { g: 50000, s: 30000, w: 40000 } }, // cost [V 1: Hafen-Seite]
+    khandelsschiff:{ name: 'Kleines Handelsschiff', att: 0,  def: 0,  troops: 0,  war: false, cap: 500,  cost: { g: 150,  s: 80,   w: 200  } }, // cap [V 3]
+    ghandelsschiff:{ name: 'Großes Handelsschiff',  att: 0,  def: 0, troops: 0,  war: false, cap: 2000, cost: { g: 500,  s: 250,  w: 600  } }, // cap [V 3]
+    spio:          { name: 'Spionageschiff',        att: 0,  def: 0,  troops: 0,  war: false, cap: 0,    cost: { g: 50,   s: 0,    w: 50   } },
+    // Kriegsakademie-Schiffe: exakte Werte von /game/island/harbour (22.10.2026) [V 1].
+    // Zerstörer-Angriff war vor dem Doktrinen-Update 60 (dcc44917, 8.10.), danach 70 (Hinweis des Spielers); Gegenprobe 15*45 + 50*15 = 1425 (a6496bde) stimmt mit den Seitenwerten.
+    zerstoerer:    { name: 'Zerstörer',             att: 70, def: 45, troops: 5, war: true,  cap: 0, cost: { g: 650, s: 350, w: 700 } },
+    enterbrigg:    { name: 'Enterbrigg',            att: 45, def: 15, troops: 2, war: true,  cap: 0, cost: { g: 500, s: 200, w: 600 } },
+    feuerschiff:   { name: 'Feuerschiff',           att: 30, def: 10, troops: 0, war: true,  cap: 0, cost: { g: 300, s: 160, w: 400 } }
+  };
+  const NAME2ID = {};
+  Object.entries(TROOPS).forEach(([k, v]) => NAME2ID[v.name] = k);
+  Object.entries(SHIPS).forEach(([k, v]) => NAME2ID[v.name] = k);
+  const WAR_IDS = Object.keys(SHIPS).filter(k => SHIPS[k].war);  // Reihenfolge = Verteilungsreihenfolge der Verluste [F]
+  const hasUnknown = (ships, side) => WAR_IDS.some(k => (ships[k] || 0) > 0 && SHIPS[k][side] === null);
+
+  // ---- Konstanten der Kampfregeln ----------------------------------------------------
+  const K = {
+    DEF_BONUS: 1.15,        // Verteidigervorteil auf Insel mit gebäudebasierter Basis [V 27/27], nie bei fester NPC-Basis [V 36/36]
+    HAFEN_PER_LEVEL: 10,    // Hafen-Stärke = Level x 10 [V 8]
+    WALL_PER_LEVEL: 100,    // Steinmauer-Stärke = Level x 100 bei gebäudebasierter Basis [V 6]
+    WALL_PER_LEVEL_NPC: 40, // ... aber Level x 40 bei Altreich/Einheimischen mit fester Basis 400/500 [V 3: 353c3e6e, 14335e7f, cda2c2d4]
+    // Angreifer-Landverlust (Angreifer siegt, r = D/A < 1): c * r^k / (1 + b*r)  [V 39 Punkte, Fit 2.3 chi2; die alte 0.55*r^1.33 lag bei r~1 um 8 % zu hoch]
+    // Daten decken r 0.03-0.5 und 0.92-0.99 ab, dazwischen Lücke (Interpolation).
+    ATT_LAND_C: 0.68, ATT_LAND_K: 1.4257, ATT_LAND_B: 0.3424,
+    SEA_DEF_MAX_LOSS: 0.75, // unterlegener Verteidiger rettet mind. 1/4 je Schiffstyp [V 17]
+    CAPITULATION_RATIO: 4,  // Kapitulation: Angriff >= 4 x Verteidigung (ohne +15 %) in jeder Phase [V 1, grenzwertig 4.007; 14 Berichte konsistent]
+    CAPITULATION_LOSS: 0.5, // Verluste beider Seiten halbiert [V 12]
+    DRIFTWOOD: 0.25,        // Treibgut = 25 % des Holzes versenkter Kriegsschiffe [V 12]
+    PROTECT: 0.10,          // Beuteschutz = 10 % der Lagerhaus-Kapazität [V 2 mit Spähbericht]
+    STORE_BASE: 1200, STORE_GROWTH: 1.15  // Lagerhaus-Kapazität round(1200*1.15^lvl) [V 2], deckt sich mit kampfinsel-tools.html
+  };
+
+  // ---- Kleinkram ---------------------------------------------------------------------
+  const rhu = x => Math.floor(x + 0.5);                       // Runden, .5 nach oben
+  const sum = (o, f) => Object.entries(o).reduce((a, [k, v]) => a + f(k, v), 0);
+  const copy = o => Object.assign({}, o);
+  const storeCap = lvl => Math.round(K.STORE_BASE * Math.pow(K.STORE_GROWTH, lvl));
+  const protection = lvl => Math.round(K.PROTECT * storeCap(lvl));
+
+  // proportionale Verteilung einer Gesamtzahl auf Typen: floor je Typ, Rest an den größten Bruchteil [F, deckt sich mit Berichten]
+  function distribute(total, counts, order) {
+    const ids = order.filter(k => (counts[k] || 0) > 0);
+    const n = ids.reduce((a, k) => a + counts[k], 0);
+    const out = {};
+    if (n <= 0 || total <= 0) return out;
+    if (total >= n) { ids.forEach(k => out[k] = counts[k]); return out; }
+    let given = 0; const fr = [];
+    ids.forEach((k, i) => { const x = counts[k] / n * total, f = Math.floor(x); out[k] = f; given += f; fr.push({ k, fr: x - f, i }); });
+    fr.sort((a, b) => b.fr - a.fr || a.i - b.i);
+    for (let j = 0; j < total - given; j++) out[fr[j % fr.length].k]++;
+    return out;
+  }
+
+  // ---- Stärken -----------------------------------------------------------------------
+  const seaAtt = ships => sum(ships, (k, n) => SHIPS[k] && SHIPS[k].war ? n * (SHIPS[k].att || 0) : 0);
+  const seaDef = ships => sum(ships, (k, n) => SHIPS[k] && SHIPS[k].war ? n * (SHIPS[k].def || 0) : 0);
+  const harborStrength = lvl => lvl * K.HAFEN_PER_LEVEL;
+  const landAtt = (troops, res) => sum(troops, (k, n) => {
+    const t = TROOPS[k]; if (!t) return 0;
+    const bonus = k === 'speertraeger' ? 2 * (res.speer || 0) : k === 'bogenschuetze' ? 3 * (res.bogen || 0) : 0;
+    return n * (t.att + bonus);
+  });
+  // Basis der Verteidigung aus den Gebäuden (Spielerinsel / Ruine mit Gebäuden): Summe aller Gebäudestufen - 47, begrenzt auf 5..50.
+  // [S] 3 Punkte mit Steigung 1 pro Stufe: (Summe 82 -> 35), (87 -> 40), (77 nach Haupthaus-Zerstörung -> 30); Summen ab ~97 liegen im Deckel 50 [V 3].
+  // Der Fork schätzt anders (max(5, Summe/2.45 + HH*0.57)) und trifft nur 3 von 8. Bitte Basis im Bericht prüfen.
+  function baseFromBuildings(b) {
+    const total = Object.values(b).reduce((a, v) => a + v, 0);
+    return Math.min(50, Math.max(5, total - 47));
+  }
+  // def = { troops, schild, mauer (Level), base (Zahl), fixedBase (true bei Altreich/Einheimische) }
+  function landDef(d) {
+    const troops = sum(d.troops || {}, (k, n) => TROOPS[k] ? n * (TROOPS[k].def + 2 * (d.schild || 0)) : 0);
+    const raw = troops + (d.mauer || 0) * (d.fixedBase ? K.WALL_PER_LEVEL_NPC : K.WALL_PER_LEVEL) + d.base;
+    return { raw, total: Math.floor(raw * (d.fixedBase ? 1 : K.DEF_BONUS)), troops };
+  }
+
+  // ---- Phase 1: Seeschlacht ("Sieger-Rechnung") ---------------------------------------
+  // Der Sieger verliert den Anteil Loser/(A+D), der Verlierer den Anteil Winner/(A+D) [V 12 / V 17].
+  // Verteidiger-Verlierer: je Typ höchstens n - floor(n/4). Angreifer-Verlierer: unbegrenzt.
+  function sea1(attShips, defShips, o) {
+    o = o || {};
+    const A = seaAtt(attShips), D = seaDef(defShips);
+    const r = { A, D, attLoss: {}, defLoss: {}, skipped: false, attWins: true };
+    if (D === 0 && !Object.keys(defShips).some(k => SHIPS[k] && SHIPS[k].war && defShips[k] > 0)) { r.skipped = true; return r; }
+    r.attWins = A > D;                                            // Gleichstand: Verteidiger gewinnt [F, ungeprüft]
+    const cap = o.capitulated ? K.CAPITULATION_LOSS : 1;
+    const tot = A + D;
+    if (o.fixedNpc) {   // Altreich/Einheimische mit festem Basis-Wert: alte Regel ohne Sieger-Rechnung [V 4: e451ced5, 94d23221, 286cf0d5, 5c9f98d7]
+      // Sieger verliert D/A seiner Schiffe je Typ, Verlierer verliert alles. Niederlage des Angreifers: gespiegelt [S, keine Daten].
+      const w = r.attWins ? D / A : A / D;
+      WAR_IDS.forEach(k => {
+        const na = attShips[k] || 0, nd = defShips[k] || 0;
+        if (r.attWins) { if (na) r.attLoss[k] = rhu(na * Math.min(1, w)); if (nd) r.defLoss[k] = nd; }
+        else { if (nd) r.defLoss[k] = rhu(nd * Math.min(1, w)); if (na) r.attLoss[k] = na; }
+      });
+      return r;
+    }
+    WAR_IDS.forEach(k => {
+      const na = attShips[k] || 0, nd = defShips[k] || 0;
+      if (r.attWins) {
+        if (na) r.attLoss[k] = rhu(na * (D / tot) * cap);
+        if (nd) { const full = Math.min(rhu(nd * (A / tot)), nd - Math.floor(nd * (1 - K.SEA_DEF_MAX_LOSS))); r.defLoss[k] = o.capitulated ? rhu(full * cap) : full; }
+      } else {
+        if (nd) r.defLoss[k] = rhu(nd * (A / tot));
+        if (na) r.attLoss[k] = rhu(na * (D / tot));
+      }
+    });
+    return r;
+  }
+
+  // ---- Phase 2: Hafenverteidigung (alte Regel) -----------------------------------------
+  // Gesamtverlust = round(N * H / A2), Verteilung proportional, Kapitulation halbiert je Typ [V 21 / 23]
+  function sea2(attShips, hafenLvl, o) {
+    o = o || {};
+    const H = harborStrength(hafenLvl), A2 = seaAtt(attShips);
+    const r = { H, A2, attLoss: {}, skipped: hafenLvl <= 0, breakthrough: true };
+    if (r.skipped) return r;
+    const N = WAR_IDS.reduce((a, k) => a + (attShips[k] || 0), 0);
+    if (A2 <= H) { r.breakthrough = false; WAR_IDS.forEach(k => { if (attShips[k]) r.attLoss[k] = attShips[k]; }); return r; } // [S] Angreifer verliert alles
+    const total = rhu(N * H / A2);
+    const d = distribute(total, attShips, WAR_IDS);
+    Object.keys(d).forEach(k => r.attLoss[k] = o.capitulated ? rhu(d[k] * K.CAPITULATION_LOSS) : d[k]);
+    return r;
+  }
+
+  // ---- Ertrinken: mehr Truppen als Platz auf den überlebenden Kriegsschiffen ---------------
+  const troopSpace = ships => sum(ships, (k, n) => SHIPS[k] ? n * SHIPS[k].troops : 0);
+  function drown(troops, space) {
+    const ids = Object.keys(TROOPS).filter(k => (troops[k] || 0) > 0);
+    const n = ids.reduce((a, k) => a + troops[k], 0), out = {};
+    if (n <= space) return out;
+    let excess = n - space, left = excess;
+    ids.forEach(k => { const x = Math.floor(troops[k] / n * excess); if (x) out[k] = x; left -= x; });
+    for (const k of ids) { if (left <= 0) break; if (troops[k] - (out[k] || 0) > 0) { out[k] = (out[k] || 0) + 1; left--; } }
+    return out;
+  }
+
+  // ---- Phase 3: Landkampf ---------------------------------------------------------------
+  // Verteidiger-Verlust (Angreifer siegt) = A/(A+D)  [V 14], Angreifer-Verlust = 0.55*(D/A)^1.33 [V 40]
+  // Beide x (1 + Chaos/100) und x 0.5 bei Kapitulation. Eroberung: alle Verteidiger sterben [V 7].
+  // Verteidiger siegt: Annahme "Verlierer verliert Anteil des Siegers" -> Angreifer D/(A+D) [S, 2 Berichte], Verteidiger spiegelbildlich [S].
+  const attLandLoss = r => Math.min(1, K.ATT_LAND_C * Math.pow(r, K.ATT_LAND_K) / (1 + K.ATT_LAND_B * r));
+  function land(attTroops, defTroops, A, D, o) {
+    o = o || {};
+    const r = { A, D, attLoss: {}, defLoss: {}, attWins: A > D };
+    const chaos = 1 + (o.chaos || 0) / 100, cap = o.capitulated ? K.CAPITULATION_LOSS : 1;
+    const tot = A + D;
+    let fa, fd;
+    if (r.attWins) {
+      fa = attLandLoss(D / A);
+      fd = o.conquest ? 1 : A / tot;
+    } else {
+      fa = D / tot;
+      fd = D > 0 ? attLandLoss(A / D) : 0;
+    }
+    Object.keys(attTroops).forEach(k => { const n = attTroops[k]; if (n) r.attLoss[k] = Math.min(n, rhu(n * fa * chaos * cap)); });
+    Object.keys(defTroops).forEach(k => { const n = defTroops[k]; if (n) r.defLoss[k] = Math.min(n, rhu(n * fd * (o.conquest ? 1 : chaos * cap))); });
+    r.fa = fa; r.fd = fd;
+    return r;
+  }
+
+  // ---- Kapitulation: Angreifer >= 4x Verteidiger in allen Phasen, die stattfinden ------------
+  // pairs: [{att, def}] mit def OHNE +15 %. Leere Phase (def 0) zählt als erfüllt [F, deckt sich mit Berichten].
+  function capitulates(pairs, o) {
+    o = o || {};
+    if (o.npc || o.conquest) return false;                       // Ruinen/Einheimische kämpfen bis zum Ende, Kolonisierung nie [V Handbuch]
+    return pairs.every(p => p.def <= 0 ? true : p.att <= 0 ? false : p.att >= K.CAPITULATION_RATIO * p.def);
+  }
+
+  // ---- Phase 4: Belagerung ------------------------------------------------------------------
+  // Stufe L zu zerstören kostet L Katapulte, von der obersten Stufe abwärts [V 18: 28167220 105=20+..+15, 6dd7f080 200]
+  function siege(catapults, level) {
+    let c = Math.max(0, Math.floor(catapults)), l = Math.max(0, Math.floor(level)), used = 0;
+    const from = l;
+    while (l > 0 && c >= l) { c -= l; used += l; l--; }
+    return { from, to: l, destroyed: from - l, value: used, left: c };
+  }
+
+  // ---- Phase 5: Plünderung ---------------------------------------------------------------------
+  // Aufteilung der Kapazität: je Rohstoff zuerst ein Drittel (begrenzt durch den Vorrat), der Rest in der Reihenfolge Gold -> Stein -> Holz [V 5]
+  function splitLoot(capacity, avail) {
+    const keys = ['gold', 'stone', 'wood'];
+    const total = keys.reduce((a, k) => a + avail[k], 0);
+    if (total <= capacity) return copy(avail);
+    const third = Math.floor(capacity / 3), out = {};
+    let used = 0;
+    keys.forEach(k => { out[k] = Math.min(third, avail[k]); used += out[k]; });
+    let left = capacity - used;
+    keys.forEach(k => { const add = Math.min(left, avail[k] - out[k]); out[k] += add; left -= add; });
+    return out;
+  }
+  function capacity(ships, troopsLeftFull) {
+    return sum(ships, (k, n) => SHIPS[k] ? n * SHIPS[k].cap : 0) + sum(troopsLeftFull, (k, n) => TROOPS[k] ? n * TROOPS[k].cap : 0);
+  }
+  const driftwood = lostShips => K.DRIFTWOOD * sum(lostShips, (k, n) => SHIPS[k] && SHIPS[k].cost ? n * SHIPS[k].cost.w : 0);
+
+  // ---- Gesamtsimulation: Phasen 1-5 hintereinander -------------------------------------------------
+  // inp = { att:{ships,troops,res:{speer,bogen}}, def:{ships,troops,schild,mauer,hafen,base,fixedBase,lager,stock:{gold,stone,wood}, siege:{name,level}},
+  //         opts:{chaos, conquest, overrideLandAtt} }
+  // Kapitulation wird aus einem Durchlauf ohne Kapitulation bestimmt und dann mit Kapitulation neu gerechnet [S: Näherung, Stärken ohne Halbierung].
+  function simulate(inp) {
+    const att = inp.att, def = inp.def, o = inp.opts || {};
+    const fixed = !!def.fixedBase;
+    const D3 = landDef({ troops: def.troops || {}, schild: def.schild || 0, mauer: def.mauer || 0, base: def.base || 0, fixedBase: fixed });
+    if (o.overrideLandDef !== undefined) { D3.total = o.overrideLandDef; D3.raw = fixed ? o.overrideLandDef : o.overrideLandDef / K.DEF_BONUS; }   // nur für den Modelltest
+    const defWar = WAR_IDS.some(k => (def.ships[k] || 0) > 0);
+    const clampLoss = (have, loss) => { const o2 = {}; Object.keys(loss).forEach(k => o2[k] = Math.min(have[k] || 0, loss[k])); return o2; };
+    const take = (have, loss) => { Object.keys(loss).forEach(k => have[k] = Math.max(0, (have[k] || 0) - loss[k])); };
+    const add = (a, b) => { Object.keys(b).forEach(k => a[k] = (a[k] || 0) + b[k]); };
+
+    function run(capit) {
+      const R = { capit, notes: [], stop: null, attLostShips: {}, defLostShips: {}, attLostTroops: {}, defLostTroops: {}, drowned: {}, p1: null, p2: null, p3: null, p4: null, p5: null };
+      const ships = copy(att.ships), defShips = copy(def.ships);
+      if (defWar) {
+        R.p1 = sea1(ships, defShips, { capitulated: capit, fixedNpc: fixed });
+        R.p1.attLoss = clampLoss(ships, R.p1.attLoss); R.p1.defLoss = clampLoss(defShips, R.p1.defLoss);
+        R.p1.shipsBefore = copy(ships);
+        take(ships, R.p1.attLoss); take(defShips, R.p1.defLoss); add(R.attLostShips, R.p1.attLoss); add(R.defLostShips, R.p1.defLoss);
+        if (!R.p1.attWins) { R.stop = 'sea'; return R; }
+      }
+      if ((def.hafen || 0) > 0 && WAR_IDS.some(k => (ships[k] || 0) > 0)) {
+        R.p2 = sea2(ships, def.hafen, { capitulated: capit });
+        R.p2.shipsBefore = copy(ships);
+        take(ships, R.p2.attLoss); add(R.attLostShips, R.p2.attLoss);
+        if (!R.p2.breakthrough) { R.stop = 'harbor'; return R; }
+      }
+      R.shipsLeft = ships;
+      const troops0 = copy(att.troops || {});
+      R.drowned = drown(troops0, troopSpace(ships));
+      const troops = copy(troops0); take(troops, R.drowned);
+      const A3 = o.overrideLandAtt !== undefined ? o.overrideLandAtt : landAtt(troops, att.res || {});
+      R.p3 = land(troops, def.troops || {}, A3, D3.total, { capitulated: capit, chaos: o.chaos || 0, conquest: !!o.conquest });
+      R.p3.A3 = A3; R.p3.troopsBefore = troops;
+      R.attLostTroops = R.p3.attLoss; R.defLostTroops = R.p3.defLoss;
+      // Kapazität und Katapulte rechnen mit den ungehalbierten Verlusten [V 46]
+      const full = {};
+      Object.keys(troops).forEach(k => full[k] = Math.max(0, troops[k] - (R.p3.attLoss[k] || 0) * (capit ? 2 : 1)));
+      R.fullLeft = full;
+      if (!R.p3.attWins) { R.stop = 'land'; return R; }
+      if (def.siege && def.siege.level > 0 && (full.katapult || 0) > 0) R.p4 = siege(full.katapult, def.siege.level);
+      const traders = capacity(ships, {}), troopCap = capacity({}, full);
+      const capTotal = traders + troopCap;
+      const avail = {};
+      ['gold', 'stone', 'wood'].forEach(k => avail[k] = Math.max(0, ((def.stock || {})[k] || 0) - protection(def.lager || 0)));
+      const loot = splitLoot(capTotal, avail);
+      const lootTotal = loot.gold + loot.stone + loot.wood;
+      const sunk = {}; add(sunk, R.attLostShips); add(sunk, R.defLostShips);
+      const drift = Math.min(driftwood(sunk), Math.max(0, capTotal - lootTotal));
+      R.p5 = { capacity: capTotal, capTraders: traders, avail, loot, lootTotal, drift };
+      return R;
+    }
+
+    let R = run(false);
+    const pairs = [];
+    if (defWar && R.p1) pairs.push({ att: R.p1.A, def: R.p1.D });
+    if (R.p2) pairs.push({ att: R.p2.A2, def: R.p2.H });
+    if (R.p3) pairs.push({ att: R.p3.A3, def: D3.raw });
+    const reachedLand = !!R.p3;
+    const capit = reachedLand && !fixed && capitulates(pairs, { npc: fixed, conquest: !!o.conquest });
+    if (capit) R = run(true);
+    R.pairs = pairs; R.D3 = D3; R.capitulated = capit;
+    // wirtschaftlicher Wert (Gold+Stein+Holz) der Verluste
+    const val = (set, table) => { let v = 0, unk = false; Object.keys(set).forEach(k => { const c = table[k] && table[k].cost; if (c) v += set[k] * (c.g + c.s + c.w); else if (set[k]) unk = true; }); return { v, unk }; };
+    R.value = { attShips: val(R.attLostShips, SHIPS), defShips: val(R.defLostShips, SHIPS), attTroops: val(R.attLostTroops, TROOPS), defTroops: val(R.defLostTroops, TROOPS) };
+    R.attWon = !R.stop;
+    return R;
+  }
+
+  return { simulate, TROOPS, SHIPS, NAME2ID, WAR_IDS, K, rhu, distribute, storeCap, protection,
+    seaAtt, seaDef, harborStrength, landAtt, landDef, baseFromBuildings, sea1, sea2, troopSpace, drown, land,
+    capitulates, siege, splitLoot, capacity, driftwood, hasUnknown };
+})();
+</script>
+
+<script id="ui">
+/* =====================================================================================
+   BEDIENOBERFLÄCHE – liest die Maske, ruft Model.simulate auf, zeigt die Phasen an.
+   Gespeichert (localStorage, nur Komfort): Angreifer-Flotte, Forschung, Schalter.
+   ===================================================================================== */
+(function () {
+  if (typeof document === 'undefined' || !document.getElementById('calc')) return;
+  const M = Model, $ = id => document.getElementById(id);
+  const SHIP_IDS = ['kkriegsschiff', 'gkriegsschiff', 'zerstoerer', 'enterbrigg', 'feuerschiff', 'kolo', 'khandelsschiff', 'ghandelsschiff'];
+  const TROOP_IDS = ['steinwerfer', 'speertraeger', 'bogenschuetze', 'katapult'];
+  const RES = [['gold', 'Gold'], ['stone', 'Stein'], ['wood', 'Holz']];
+  const fmt = n => Math.round(n).toLocaleString('de-DE');
+  const num = id => { const v = String(($(id) || {}).value || '').replace(/\./g, '').replace(',', '.'); const x = parseFloat(v); return isFinite(x) ? x : 0; };
+  let spyBuildings = {};   // Gebäude aus dem eingefügten Spähbericht (für Basis und Belagerungsziel)
+
+  function grid(prefix, ids, table) {
+    return ids.map(k => '<label>' + table[k].name + '<input type="text" inputmode="numeric" id="' + prefix + k + '" value="0"></label>').join('');
+  }
+  $('a_ships').innerHTML = grid('a_s_', SHIP_IDS, M.SHIPS);
+  $('a_troops').innerHTML = grid('a_t_', TROOP_IDS, M.TROOPS);
+  $('d_ships').innerHTML = grid('d_s_', SHIP_IDS.slice(0, 8), M.SHIPS);
+  $('d_troops').innerHTML = grid('d_t_', TROOP_IDS, M.TROOPS);
+
+  const SAVE = ['a_speer', 'a_bogen', 'chaos'].concat(SHIP_IDS.map(k => 'a_s_' + k), TROOP_IDS.map(k => 'a_t_' + k));
+  const save = () => { try { const o = {}; SAVE.forEach(id => o[id] = $(id).value); localStorage.setItem('kampfinsel-rechner', JSON.stringify(o)); } catch (e) {} };
+  try { const o = JSON.parse(localStorage.getItem('kampfinsel-rechner') || '{}'); SAVE.forEach(id => { if (o[id] !== undefined && $(id)) $(id).value = o[id]; }); } catch (e) {}
+
+  const readSet = (prefix, ids) => { const o = {}; ids.forEach(k => { const v = Math.floor(num(prefix + k)); if (v > 0) o[k] = v; }); return o; };
+
+  // ---- Spähbericht einlesen (Text aus der Seite kopiert) -------------------------------------
+  const SECTIONS = { 'Gebäude': 'b', 'Truppen': 't', 'Schiffe': 's', 'Ressourcen': 'r', 'Forschen': 'f' };
+  function parseSpy(text) {
+    const out = { b: {}, t: {}, s: {}, r: {}, f: {}, target: '' };
+    let sec = null;
+    text.split(/\r?\n/).forEach(raw => {
+      const line = raw.replace(/ /g, ' ').trim();
+      if (!line) return;
+      let m = line.match(/^Ziel:\s*(.+)$/); if (m) { out.target = m[1].trim(); return; }
+      const head = Object.keys(SECTIONS).find(h => line === h || (line.startsWith(h) && /^(Keine|Stufe|Einheit|Schiff|Technologie|Ressource|Gebäude)/.test(line.slice(h.length))));
+      if (head) { sec = SECTIONS[head]; if (!/\d/.test(line)) return; }
+      m = line.match(/^([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\- ]*?)\s*[\t ]\s*(\d[\d.]*)$/) || line.match(/^([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\-]*(?: [A-Za-zÄÖÜäöüß\-]+)*?)(\d[\d.]*)$/);
+      if (m && sec) out[sec][m[1].trim()] = parseInt(m[2].replace(/\./g, ''), 10);
+    });
+    return out;
+  }
+  function applySpy(sp) {
+    spyBuildings = sp.b;
+    const lc = n => (sp.b[n] || 0);
+    $('d_hafen').value = lc('Hafen'); $('d_mauer').value = lc('Steinmauer'); $('d_lager').value = lc('Lagerhaus');
+    $('d_schild').value = sp.f['Schild'] || 0;
+    TROOP_IDS.forEach(k => $('d_t_' + k).value = sp.t[M.TROOPS[k].name] || 0);
+    SHIP_IDS.forEach(k => $('d_s_' + k).value = sp.s[M.SHIPS[k].name] || 0);
+    $('d_gold').value = sp.r['Gold'] || 0; $('d_stone').value = sp.r['Stein'] || 0; $('d_wood').value = sp.r['Holz'] || 0;
+    const altreich = /Altreich|Einheimisch/i.test(sp.target);
+    const opts = '<option value="">(keine Belagerung)</option>' + Object.keys(sp.b).map(n => '<option>' + n + '</option>').join('');
+    $('d_siege').innerHTML = opts;
+    $('d_fixed').checked = altreich; $('d_base_auto').checked = !altreich;
+    $('d_base').value = altreich ? 500 : M.baseFromBuildings(sp.b);
+    const have = Object.keys(sp.b).length;
+    $('spy_info').innerHTML = have ? 'Eingelesen: <b>' + (sp.target || 'Ziel unbekannt') + '</b> – ' + have + ' Gebäude, ' + Object.keys(sp.t).length + ' Truppentypen, ' + Object.keys(sp.s).length + ' Schiffstypen.'
+      + (altreich ? ' <span class="warn">Altreich: feste Basis angenommen (400 oder 500) – bitte im Feld „Basis“ prüfen.</span>' : ' Basis aus den Gebäuden geschätzt (siehe Hinweis unten).') : '<span class="bad">Nichts erkannt – bitte den Text des ganzen Spähberichts einfügen.</span>';
+    calc();
+  }
+  $('spy_btn').onclick = () => applySpy(parseSpy($('spy_text').value));
+  $('d_siege').onchange = () => { const n = $('d_siege').value; $('d_siege_lv').value = n ? (spyBuildings[n] || 0) : 0; calc(); };
+
+  // ---- Rechnen und anzeigen ------------------------------------------------------------------
+  function collect() {
+    const fixed = $('d_fixed').checked;
+    if ($('d_base_auto').checked && Object.keys(spyBuildings).length && !fixed) $('d_base').value = M.baseFromBuildings(spyBuildings);
+    return {
+      att: { ships: readSet('a_s_', SHIP_IDS), troops: readSet('a_t_', TROOP_IDS), res: { speer: num('a_speer'), bogen: num('a_bogen') } },
+      def: { ships: readSet('d_s_', SHIP_IDS), troops: readSet('d_t_', TROOP_IDS), schild: num('d_schild'), mauer: num('d_mauer'), hafen: num('d_hafen'),
+        base: num('d_base'), fixedBase: fixed, lager: num('d_lager'), stock: { gold: num('d_gold'), stone: num('d_stone'), wood: num('d_wood') },
+        siege: $('d_siege').value ? { name: $('d_siege').value, level: num('d_siege_lv') } : null },
+      opts: { chaos: num('chaos'), conquest: $('conquest').checked }
+    };
+  }
+  const nameOf = k => (M.SHIPS[k] || M.TROOPS[k]).name;
+  const lossList = o => { const e = Object.entries(o).filter(([, v]) => v > 0); return e.length ? e.map(([k, v]) => fmt(v) + ' ' + nameOf(k)).join(', ') : '–'; };
+  const ratio = p => p.def > 0 ? (p.att / p.def).toFixed(2) + '×' : '–';
+
+  function phaseRows(R, inp) {
+    const rows = [];
+    const row = (t, body, cls) => rows.push('<tr><td><b>' + t + '</b></td><td class="' + (cls || '') + '">' + body + '</td></tr>');
+    if (R.p1) row('1 Seeschlacht', 'Angriff ' + fmt(R.p1.A) + ' gegen Verteidigung ' + fmt(R.p1.D) + ' → ' + (R.p1.attWins ? 'Angreifer gewinnt' : '<b class="bad">Verteidiger gewinnt</b>')
+      + '<br>Verlust Angreifer: ' + lossList(R.p1.attLoss) + '<br>Verlust Verteidiger: ' + lossList(R.p1.defLoss));
+    else row('1 Seeschlacht', 'Keine – der Verteidiger hat keine Kriegsschiffe.');
+    if (R.stop === 'sea') { row('Ende', 'Der Angriff scheitert auf See. Ob und ab wann ein Geordneter Rückzug greift, ist nicht bekannt (keine Daten).', 'bad'); return rows; }
+    if (R.p2) row('2 Hafenverteidigung', 'Hafen ' + fmt(R.p2.H) + ' gegen deine Flotte ' + fmt(R.p2.A2) + ' → ' + (R.p2.breakthrough ? 'durchgebrochen' : '<b class="bad">abgewehrt</b>')
+      + '<br>Verlust Angreifer: ' + lossList(R.p2.attLoss));
+    else row('2 Hafenverteidigung', 'Keine (Hafen Stufe 0 oder keine Kriegsschiffe mehr).');
+    if (R.stop === 'harbor') { row('Ende', 'Der Hafen hält. Angenommen: die Kriegsschiffe gehen verloren, Truppen kommen nicht an [Annahme].', 'bad'); return rows; }
+    const dr = Object.keys(R.drowned).length ? '<br><span class="warn">Ertrunken (zu wenig Platz auf den Schiffen): ' + lossList(R.drowned) + '</span>' : '';
+    row('3 Landkampf', 'Angriff ' + fmt(R.p3.A) + ' gegen Verteidigung ' + fmt(R.p3.D) + ' (' + fmt(R.D3.raw) + ' ' + (inp.def.fixedBase ? 'ohne' : 'vor') + ' Verteidigervorteil) → '
+      + (R.p3.attWins ? 'Angreifer gewinnt' : '<b class="bad">Verteidiger gewinnt</b> <span class="warn">(Formel für diesen Fall nur angenommen)</span>')
+      + '<br>Verlust Angreifer: ' + lossList(R.attLostTroops) + '<br>Verlust Verteidiger: ' + lossList(R.defLostTroops) + dr);
+    if (!R.p3.attWins) { row('Ende', 'Der Angriff scheitert an Land: keine Belagerung, keine Beute.', 'bad'); return rows; }
+    if (R.p4) row('4 Belagerung', inp.def.siege.name + ' Stufe ' + R.p4.from + ' → ' + R.p4.to + ' (' + fmt(R.p4.destroyed) + ' Stufen, ' + fmt(R.p4.value) + ' Katapulte eingesetzt, ' + fmt(R.p4.left) + ' übrig)');
+    else row('4 Belagerung', inp.def.siege ? 'Keine Katapulte übrig.' : 'Kein Ziel gewählt.');
+    const p5 = R.p5;
+    row('5 Plünderung', 'Tragekapazität ' + fmt(p5.capacity) + ' (davon Handelsschiffe ' + fmt(p5.capTraders) + '), plünderbar ' + RES.map(([k, n]) => n + ' ' + fmt(p5.avail[k])).join(' · ')
+      + '<br><b>Beute: ' + RES.map(([k, n]) => n + ' ' + fmt(p5.loot[k])).join(' · ') + ' = ' + fmt(p5.lootTotal) + '</b>'
+      + (p5.drift > 0 ? '<br>Treibgut: ' + fmt(p5.drift) + ' Holz' : ''));
+    return rows;
+  }
+
+  function summary(R, inp) {
+    const v = R.value, unk = v.attShips.unk || v.defShips.unk || v.attTroops.unk || v.defTroops.unk;
+    const attLoss = v.attShips.v + v.attTroops.v, defLoss = v.defShips.v + v.defTroops.v;
+    const gain = R.p5 ? R.p5.lootTotal + R.p5.drift : 0;
+    const head = R.attWon ? '<b class="ok">Angriff erfolgreich</b>' : '<b class="bad">Angriff scheitert</b>';
+    return head + (R.capitulated ? ' · <b>Verteidiger kapituliert</b> (Angriff ≥ 4× Verteidigung in jeder Phase, alle Verluste halbiert)' : '')
+      + '<table style="margin-top:8px"><tr><th></th><th class="n">du</th><th class="n">Gegner</th></tr>'
+      + '<tr><td>Verlorene Schiffe (Rohstoffwert)</td><td class="n">' + fmt(v.attShips.v) + '</td><td class="n">' + fmt(v.defShips.v) + '</td></tr>'
+      + '<tr><td>Verlorene Truppen (Rohstoffwert)</td><td class="n">' + fmt(v.attTroops.v) + '</td><td class="n">' + fmt(v.defTroops.v) + '</td></tr>'
+      + '<tr><td>Beute + Treibgut</td><td class="n">+' + fmt(gain) + '</td><td class="n">−' + fmt(R.p5 ? R.p5.lootTotal : 0) + '</td></tr>'
+      + '<tr><td><b>Bilanz</b></td><td class="n"><b class="' + (gain - attLoss >= 0 ? 'ok' : 'bad') + '">' + (gain - attLoss >= 0 ? '+' : '−') + fmt(Math.abs(gain - attLoss)) + '</b></td><td class="n"><b>' + fmt(defLoss + (R.p5 ? R.p5.lootTotal : 0)) + ' Verlust</b></td></tr></table>'
+      + (unk ? '<div class="warn">Hinweis: für manche Einheiten sind die Kosten unbekannt – ihr Wert fehlt in der Bilanz.</div>' : '');
+  }
+
+  const SCALES = [0.25, 0.5, 0.75, 1, 1.5, 2, 4];
+  function scaleTable(inp) {
+    let h = '<table><tr><th>Flotte × Faktor</th><th class="n">Angriff</th><th>Ergebnis</th><th class="n">deine Verluste</th><th class="n">Beute</th><th class="n">Bilanz</th></tr>';
+    SCALES.forEach(f => {
+      const sc = o => { const r = {}; Object.keys(o).forEach(k => { const v = Math.floor(o[k] * f); if (v > 0) r[k] = v; }); return r; };
+      const i2 = JSON.parse(JSON.stringify(inp)); i2.att.ships = sc(inp.att.ships); i2.att.troops = sc(inp.att.troops);
+      const R = M.simulate(i2), v = R.value, loss = v.attShips.v + v.attTroops.v, gain = R.p5 ? R.p5.lootTotal + R.p5.drift : 0;
+      const A = R.p3 ? R.p3.A3 : (R.p1 ? R.p1.A : 0);
+      h += '<tr' + (f === 1 ? ' style="font-weight:600"' : '') + '><td>× ' + f + '</td><td class="n">' + fmt(A) + '</td><td class="' + (R.attWon ? 'ok' : 'bad') + '">' + (R.attWon ? 'Sieg' : 'Niederlage') + (R.capitulated ? ' (Kapitulation)' : '') + '</td><td class="n">' + fmt(loss) + '</td><td class="n">' + fmt(gain) + '</td><td class="n ' + (gain - loss >= 0 ? 'ok' : 'bad') + '">' + fmt(gain - loss) + '</td></tr>';
+    });
+    return h + '</table><p class="sub">Alle Einheiten gleichzeitig skaliert (Land und See). Bilanz = Beute + Treibgut − eigene Verluste, nach Rohstoffwert.</p>';
+  }
+
+  function calc() {
+    save();
+    const inp = collect();
+    const hasAtt = Object.keys(inp.att.ships).length + Object.keys(inp.att.troops).length > 0;
+    if (!hasAtt) { $('out').innerHTML = '<div class="card sub">Gib links deine Flotte und Truppen ein und füge rechts einen Spähbericht ein.</div>'; return; }
+    const R = M.simulate(inp);
+    const unknown = M.hasUnknown(inp.att.ships, 'att') || M.hasUnknown(inp.def.ships, 'def');
+    const base = !inp.def.fixedBase && $('d_base_auto').checked;
+    const warn = [];
+    if (unknown) warn.push('Für eine Schiffsart sind Angriff/Verteidigung unbekannt.');
+    if (base) warn.push('Die <b>Basis</b> ist aus den Gebäuden geschätzt (Summe der Stufen − 47, 5…50; nur 3 Datenpunkte). Stimmt sie nicht, trage sie von Hand ein.');
+    if (inp.opts.conquest) warn.push('Eroberung: Annahme, dass alle Verteidigertruppen sterben; Kapitulation ist dabei ausgeschlossen.');
+    if (R.p3 && !R.p3.attWins) warn.push('Der Landkampf geht an den Verteidiger – die Verlustformel für diesen Fall ist nur angenommen.');
+    if (inp.opts.chaos) warn.push('Chaos ' + inp.opts.chaos + ' % wirkt relativ auf die Landverluste beider Seiten. Es ist zufällig (−5…+5 %) und wird erst im Kampf gewürfelt.');
+    $('out').innerHTML = '<div class="card">' + summary(R, inp) + '</div><div class="card"><table>' + phaseRows(R, inp).join('') + '</table></div>'
+      + (warn.length ? '<div class="card warnbox">' + warn.map(w => '<div>• ' + w + '</div>').join('') + '</div>' : '')
+      + '<div class="card"><b>Was wäre, wenn …</b>' + scaleTable(inp) + '</div>';
+  }
+  document.getElementById('calc').addEventListener('input', calc);
+  document.getElementById('calc').addEventListener('change', calc);
+  window.__spy = { parseSpy, applySpy, calc };   // für Tests
+  calc();
+})();
+</script>
+
+</body>
+</html>
