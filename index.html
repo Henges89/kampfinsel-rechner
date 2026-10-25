@@ -52,19 +52,17 @@ h3{font-size:14px;margin:12px 0 2px}
 <div><button id="spy_btn">Einlesen</button> <span id="spy_info" class="sub"></span></div>
 <h3>Insel</h3>
 <div class="fields"><label>Hafen-Stufe<input type="text" id="d_hafen" value="0"></label><label>Steinmauer-Stufe<input type="text" id="d_mauer" value="0"></label>
-<label>Schild-Stufe<input type="text" id="d_schild" value="0"></label><label>Basis<input type="text" id="d_base" value="50"></label>
+<label>Schild-Stufe<input type="text" id="d_schild" value="0"></label>
 <label>Lagerhaus-Stufe<input type="text" id="d_lager" value="0"></label></div>
-<label class="chk"><input type="checkbox" id="d_base_auto" checked>Basis aus Gebäuden schätzen</label>
+<p class="sub">Basis: fest 500 (Standardwert für Altreich-Ruinen).</p>
 <label class="chk"><input type="checkbox" id="d_fixed">Feste Basis (Altreich/Einheimische: Mauer 40/Stufe, kein +15 %, keine Kapitulation)</label>
 <h3>Truppen</h3><div class="fields" id="d_troops"></div>
 <h3>Schiffe</h3><div class="fields" id="d_ships"></div>
 <h3>Vorrat im Lager</h3><div class="fields"><label>Gold<input type="text" id="d_gold" value="0"></label><label>Stein<input type="text" id="d_stone" value="0"></label><label>Holz<input type="text" id="d_wood" value="0"></label></div>
-<h3>Belagerung</h3><div class="fields"><label>Ziel<select id="d_siege"><option value="">(keine Belagerung)</option></select></label><label>Stufe<input type="text" id="d_siege_lv" value="0"></label></div>
 </div>
 </div>
 <div id="out"></div>
 </section>
-<footer id="foot"><b>Eigenes Kampfmodell</b>, kalibriert an echten Kampfberichten (Handbuch-Stand v4.4.1). <b>Verifiziert:</b> Seestärken, Sieger-Rechnung auf See, Hafenverteidigung, Landverteidigung (inkl. Verteidigervorteil +15 %, Mauer), Verlustformeln im Landkampf bei Angreifersieg, Kapitulation (4×), Katapulte, Tragekapazität, Beuteteilung, Beuteschutz, Treibgut; Schiffs- und Truppenwerte von Hafen/Militär. <b>Geschätzt:</b> Basis aus Gebäuden, Landverluste des Angreifers im mittleren Stärkeverhältnis, Landkampf bei Verteidigersieg, Abbruch nach verlorener Seeschlacht/Hafen. <b>Nicht modelliert:</b> Geordneter Rückzug, Beute-Dämpfung bei Folgeangriffen, Vergeltung, Wissens-Pläne, Verbandangriff, Korsaren-Festungen.</footer>
 </main>
 
 <script id="model">
@@ -378,7 +376,7 @@ const Model = (function () {
   const RES = [['gold', 'Gold'], ['stone', 'Stein'], ['wood', 'Holz']];
   const fmt = n => Math.round(n).toLocaleString('de-DE');
   const num = id => { const v = String(($(id) || {}).value || '').replace(/\./g, '').replace(',', '.'); const x = parseFloat(v); return isFinite(x) ? x : 0; };
-  let spyBuildings = {};   // Gebäude aus dem eingefügten Spähbericht (für Basis und Belagerungsziel)
+  let spyBuildings = {};   // Gebäude aus dem eingefügten Spähbericht
 
   function grid(prefix, ids, table) {
     return ids.map(k => '<label>' + table[k].name + '<input type="text" inputmode="numeric" id="' + prefix + k + '" value="0"></label>').join('');
@@ -419,57 +417,56 @@ const Model = (function () {
     SHIP_IDS.forEach(k => $('d_s_' + k).value = sp.s[M.SHIPS[k].name] || 0);
     $('d_gold').value = sp.r['Gold'] || 0; $('d_stone').value = sp.r['Stein'] || 0; $('d_wood').value = sp.r['Holz'] || 0;
     const altreich = /Altreich|Einheimisch/i.test(sp.target);
-    const opts = '<option value="">(keine Belagerung)</option>' + Object.keys(sp.b).map(n => '<option>' + n + '</option>').join('');
-    $('d_siege').innerHTML = opts;
-    $('d_fixed').checked = altreich; $('d_base_auto').checked = !altreich;
-    $('d_base').value = altreich ? 500 : M.baseFromBuildings(sp.b);
+    $('d_fixed').checked = altreich;
     const have = Object.keys(sp.b).length;
     $('spy_info').innerHTML = have ? 'Eingelesen: <b>' + (sp.target || 'Ziel unbekannt') + '</b> – ' + have + ' Gebäude, ' + Object.keys(sp.t).length + ' Truppentypen, ' + Object.keys(sp.s).length + ' Schiffstypen.'
-      + (altreich ? ' <span class="warn">Altreich: feste Basis angenommen (400 oder 500) – bitte im Feld „Basis“ prüfen.</span>' : ' Basis aus den Gebäuden geschätzt (siehe Hinweis unten).') : '<span class="bad">Nichts erkannt – bitte den Text des ganzen Spähberichts einfügen.</span>';
+      + (altreich ? ' <span class="warn">Altreich: feste Basis angenommen.</span>' : '') : '<span class="bad">Nichts erkannt – bitte den Text des ganzen Spähberichts einfügen.</span>';
     calc();
   }
   $('spy_btn').onclick = () => applySpy(parseSpy($('spy_text').value));
-  $('d_siege').onchange = () => { const n = $('d_siege').value; $('d_siege_lv').value = n ? (spyBuildings[n] || 0) : 0; calc(); };
 
   // ---- Rechnen und anzeigen ------------------------------------------------------------------
   function collect() {
-    const fixed = $('d_fixed').checked;
-    if ($('d_base_auto').checked && Object.keys(spyBuildings).length && !fixed) $('d_base').value = M.baseFromBuildings(spyBuildings);
     return {
       att: { ships: readSet('a_s_', SHIP_IDS), troops: readSet('a_t_', TROOP_IDS), res: { speer: num('a_speer'), bogen: num('a_bogen') } },
       def: { ships: readSet('d_s_', SHIP_IDS), troops: readSet('d_t_', TROOP_IDS), schild: num('d_schild'), mauer: num('d_mauer'), hafen: num('d_hafen'),
-        base: num('d_base'), fixedBase: fixed, lager: num('d_lager'), stock: { gold: num('d_gold'), stone: num('d_stone'), wood: num('d_wood') },
-        siege: $('d_siege').value ? { name: $('d_siege').value, level: num('d_siege_lv') } : null },
+        base: 500, fixedBase: $('d_fixed').checked, lager: num('d_lager'), stock: { gold: num('d_gold'), stone: num('d_stone'), wood: num('d_wood') } },
       opts: { chaos: num('chaos'), conquest: $('conquest').checked }
     };
   }
   const nameOf = k => (M.SHIPS[k] || M.TROOPS[k]).name;
   const lossList = o => { const e = Object.entries(o).filter(([, v]) => v > 0); return e.length ? e.map(([k, v]) => fmt(v) + ' ' + nameOf(k)).join(', ') : '–'; };
-  const ratio = p => p.def > 0 ? (p.att / p.def).toFixed(2) + '×' : '–';
 
   function phaseRows(R, inp) {
     const rows = [];
     const row = (t, body, cls) => rows.push('<tr><td><b>' + t + '</b></td><td class="' + (cls || '') + '">' + body + '</td></tr>');
-    if (R.p1) row('1 Seeschlacht', 'Angriff ' + fmt(R.p1.A) + ' gegen Verteidigung ' + fmt(R.p1.D) + ' → ' + (R.p1.attWins ? 'Angreifer gewinnt' : '<b class="bad">Verteidiger gewinnt</b>')
-      + '<br>Verlust Angreifer: ' + lossList(R.p1.attLoss) + '<br>Verlust Verteidiger: ' + lossList(R.p1.defLoss));
+    if (R.p1) row('1 Seeschlacht', 'Angriff ' + fmt(R.p1.A) + ' gegen Verteidigung ' + fmt(R.p1.D) + ' → ' + (R.p1.attWins ? 'Angreifer gewinnt' : '<b class="bad">Verteidiger gewinnt</b>'));
     else row('1 Seeschlacht', 'Keine – der Verteidiger hat keine Kriegsschiffe.');
     if (R.stop === 'sea') { row('Ende', 'Der Angriff scheitert auf See. Ob und ab wann ein Geordneter Rückzug greift, ist nicht bekannt (keine Daten).', 'bad'); return rows; }
-    if (R.p2) row('2 Hafenverteidigung', 'Hafen ' + fmt(R.p2.H) + ' gegen deine Flotte ' + fmt(R.p2.A2) + ' → ' + (R.p2.breakthrough ? 'durchgebrochen' : '<b class="bad">abgewehrt</b>')
-      + '<br>Verlust Angreifer: ' + lossList(R.p2.attLoss));
+    if (R.p2) row('2 Hafenverteidigung', 'Hafen ' + fmt(R.p2.H) + ' gegen deine Flotte ' + fmt(R.p2.A2) + ' → ' + (R.p2.breakthrough ? 'durchgebrochen' : '<b class="bad">abgewehrt</b>'));
     else row('2 Hafenverteidigung', 'Keine (Hafen Stufe 0 oder keine Kriegsschiffe mehr).');
     if (R.stop === 'harbor') { row('Ende', 'Der Hafen hält. Angenommen: die Kriegsschiffe gehen verloren, Truppen kommen nicht an [Annahme].', 'bad'); return rows; }
     const dr = Object.keys(R.drowned).length ? '<br><span class="warn">Ertrunken (zu wenig Platz auf den Schiffen): ' + lossList(R.drowned) + '</span>' : '';
     row('3 Landkampf', 'Angriff ' + fmt(R.p3.A) + ' gegen Verteidigung ' + fmt(R.p3.D) + ' (' + fmt(R.D3.raw) + ' ' + (inp.def.fixedBase ? 'ohne' : 'vor') + ' Verteidigervorteil) → '
-      + (R.p3.attWins ? 'Angreifer gewinnt' : '<b class="bad">Verteidiger gewinnt</b> <span class="warn">(Formel für diesen Fall nur angenommen)</span>')
-      + '<br>Verlust Angreifer: ' + lossList(R.attLostTroops) + '<br>Verlust Verteidiger: ' + lossList(R.defLostTroops) + dr);
-    if (!R.p3.attWins) { row('Ende', 'Der Angriff scheitert an Land: keine Belagerung, keine Beute.', 'bad'); return rows; }
-    if (R.p4) row('4 Belagerung', inp.def.siege.name + ' Stufe ' + R.p4.from + ' → ' + R.p4.to + ' (' + fmt(R.p4.destroyed) + ' Stufen, ' + fmt(R.p4.value) + ' Katapulte eingesetzt, ' + fmt(R.p4.left) + ' übrig)');
-    else row('4 Belagerung', inp.def.siege ? 'Keine Katapulte übrig.' : 'Kein Ziel gewählt.');
+      + (R.p3.attWins ? 'Angreifer gewinnt' : '<b class="bad">Verteidiger gewinnt</b> <span class="warn">(Formel für diesen Fall nur angenommen)</span>') + dr);
+    if (!R.p3.attWins) { row('Ende', 'Der Angriff scheitert an Land: keine Beute.', 'bad'); return rows; }
     const p5 = R.p5;
     row('5 Plünderung', 'Tragekapazität ' + fmt(p5.capacity) + ' (davon Handelsschiffe ' + fmt(p5.capTraders) + '), plünderbar ' + RES.map(([k, n]) => n + ' ' + fmt(p5.avail[k])).join(' · ')
       + '<br><b>Beute: ' + RES.map(([k, n]) => n + ' ' + fmt(p5.loot[k])).join(' · ') + ' = ' + fmt(p5.lootTotal) + '</b>'
       + (p5.drift > 0 ? '<br>Treibgut: ' + fmt(p5.drift) + ' Holz' : ''));
     return rows;
+  }
+
+  // Verlust-Resümee: ein Schiffs-/Truppentyp pro Zeile, über alle Phasen aufsummiert
+  function lossSummary(R) {
+    const att = {}, def = {};
+    Object.assign(att, R.attLostShips, R.attLostTroops);
+    Object.assign(def, R.defLostShips, R.defLostTroops);
+    const ids = SHIP_IDS.concat(TROOP_IDS).filter(k => (att[k] || 0) > 0 || (def[k] || 0) > 0);
+    if (!ids.length) return '';
+    let h = '<table><tr><th>Verluste</th><th class="n">du</th><th class="n">Gegner</th></tr>';
+    ids.forEach(k => h += '<tr><td>' + nameOf(k) + '</td><td class="n">' + (att[k] ? fmt(att[k]) : '–') + '</td><td class="n">' + (def[k] ? fmt(def[k]) : '–') + '</td></tr>');
+    return h + '</table>';
   }
 
   function summary(R, inp) {
@@ -486,19 +483,6 @@ const Model = (function () {
       + (unk ? '<div class="warn">Hinweis: für manche Einheiten sind die Kosten unbekannt – ihr Wert fehlt in der Bilanz.</div>' : '');
   }
 
-  const SCALES = [0.25, 0.5, 0.75, 1, 1.5, 2, 4];
-  function scaleTable(inp) {
-    let h = '<table><tr><th>Flotte × Faktor</th><th class="n">Angriff</th><th>Ergebnis</th><th class="n">deine Verluste</th><th class="n">Beute</th><th class="n">Bilanz</th></tr>';
-    SCALES.forEach(f => {
-      const sc = o => { const r = {}; Object.keys(o).forEach(k => { const v = Math.floor(o[k] * f); if (v > 0) r[k] = v; }); return r; };
-      const i2 = JSON.parse(JSON.stringify(inp)); i2.att.ships = sc(inp.att.ships); i2.att.troops = sc(inp.att.troops);
-      const R = M.simulate(i2), v = R.value, loss = v.attShips.v + v.attTroops.v, gain = R.p5 ? R.p5.lootTotal + R.p5.drift : 0;
-      const A = R.p3 ? R.p3.A3 : (R.p1 ? R.p1.A : 0);
-      h += '<tr' + (f === 1 ? ' style="font-weight:600"' : '') + '><td>× ' + f + '</td><td class="n">' + fmt(A) + '</td><td class="' + (R.attWon ? 'ok' : 'bad') + '">' + (R.attWon ? 'Sieg' : 'Niederlage') + (R.capitulated ? ' (Kapitulation)' : '') + '</td><td class="n">' + fmt(loss) + '</td><td class="n">' + fmt(gain) + '</td><td class="n ' + (gain - loss >= 0 ? 'ok' : 'bad') + '">' + fmt(gain - loss) + '</td></tr>';
-    });
-    return h + '</table><p class="sub">Alle Einheiten gleichzeitig skaliert (Land und See). Bilanz = Beute + Treibgut − eigene Verluste, nach Rohstoffwert.</p>';
-  }
-
   function calc() {
     save();
     const inp = collect();
@@ -506,16 +490,16 @@ const Model = (function () {
     if (!hasAtt) { $('out').innerHTML = '<div class="card sub">Gib links deine Flotte und Truppen ein und füge rechts einen Spähbericht ein.</div>'; return; }
     const R = M.simulate(inp);
     const unknown = M.hasUnknown(inp.att.ships, 'att') || M.hasUnknown(inp.def.ships, 'def');
-    const base = !inp.def.fixedBase && $('d_base_auto').checked;
     const warn = [];
     if (unknown) warn.push('Für eine Schiffsart sind Angriff/Verteidigung unbekannt.');
-    if (base) warn.push('Die <b>Basis</b> ist aus den Gebäuden geschätzt (Summe der Stufen − 47, 5…50; nur 3 Datenpunkte). Stimmt sie nicht, trage sie von Hand ein.');
     if (inp.opts.conquest) warn.push('Eroberung: Annahme, dass alle Verteidigertruppen sterben; Kapitulation ist dabei ausgeschlossen.');
     if (R.p3 && !R.p3.attWins) warn.push('Der Landkampf geht an den Verteidiger – die Verlustformel für diesen Fall ist nur angenommen.');
     if (inp.opts.chaos) warn.push('Chaos ' + inp.opts.chaos + ' % wirkt relativ auf die Landverluste beider Seiten. Es ist zufällig (−5…+5 %) und wird erst im Kampf gewürfelt.');
-    $('out').innerHTML = '<div class="card">' + summary(R, inp) + '</div><div class="card"><table>' + phaseRows(R, inp).join('') + '</table></div>'
-      + (warn.length ? '<div class="card warnbox">' + warn.map(w => '<div>• ' + w + '</div>').join('') + '</div>' : '')
-      + '<div class="card"><b>Was wäre, wenn …</b>' + scaleTable(inp) + '</div>';
+    const ls = lossSummary(R);
+    $('out').innerHTML = '<div class="card">' + summary(R, inp) + '</div>'
+      + (ls ? '<div class="card"><h2 style="margin-top:0">Verlust-Resümee</h2>' + ls + '</div>' : '')
+      + '<div class="card"><table>' + phaseRows(R, inp).join('') + '</table></div>'
+      + (warn.length ? '<div class="card warnbox">' + warn.map(w => '<div>• ' + w + '</div>').join('') + '</div>' : '');
   }
   document.getElementById('calc').addEventListener('input', calc);
   document.getElementById('calc').addEventListener('change', calc);
