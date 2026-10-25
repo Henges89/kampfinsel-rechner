@@ -51,11 +51,12 @@ h3{font-size:14px;margin:12px 0 2px}
 <textarea id="spy_text" placeholder="Ganzen Text des Spähberichts hierher kopieren (Gebäude, Truppen, Schiffe, Ressourcen, Forschen)"></textarea>
 <div><button id="spy_btn">Einlesen</button> <span id="spy_info" class="sub"></span></div>
 <h3>Insel</h3>
-<div class="fields"><label>Hafen-Stufe<input type="text" id="d_hafen" value="0"></label><label>Steinmauer-Stufe<input type="text" id="d_mauer" value="0"></label>
+<div class="fields"><label>Hafen-Stufe<input type="text" id="d_hafen" value="0"></label><label>Steinmauer-Stufe (max. 20)<input type="text" id="d_mauer" value="0" max="20"></label>
 <label>Schild-Stufe<input type="text" id="d_schild" value="0"></label>
 <label>Basis<input type="text" id="d_base" value="500"></label>
 <label>Lagerhaus-Stufe<input type="text" id="d_lager" value="0"></label></div>
-<p class="sub">Standard 500 (typisch für Altreich-Ruinen); bei anderen Zielen anpassen. Es wird immer die Altreich-Regel angenommen (Mauer 40/Stufe, kein +15 % Verteidigervorteil, keine Kapitulation).</p>
+<p class="sub">Standard 500 (typisch für Altreich-Ruinen); bei anderen Zielen anpassen.</p>
+<label class="chk"><input type="checkbox" id="d_fixed">Altreich/Einheimische (kein +15 % Verteidigervorteil, Mauer 40/Stufe statt 100, keine Kapitulation)</label>
 <h3>Truppen</h3><div class="fields" id="d_troops"></div>
 <h3>Schiffe</h3><div class="fields" id="d_ships"></div>
 <h3>Vorrat im Lager</h3><div class="fields"><label>Gold<input type="text" id="d_gold" value="0"></label><label>Stein<input type="text" id="d_stone" value="0"></label><label>Holz<input type="text" id="d_wood" value="0"></label></div>
@@ -417,9 +418,10 @@ const Model = (function () {
     SHIP_IDS.forEach(k => $('d_s_' + k).value = sp.s[M.SHIPS[k].name] || 0);
     $('d_gold').value = sp.r['Gold'] || 0; $('d_stone').value = sp.r['Stein'] || 0; $('d_wood').value = sp.r['Holz'] || 0;
     const altreich = /Altreich|Einheimisch/i.test(sp.target);
+    $('d_fixed').checked = altreich;
     const have = Object.keys(sp.b).length;
     $('spy_info').innerHTML = have ? 'Eingelesen: <b>' + (sp.target || 'Ziel unbekannt') + '</b> – ' + have + ' Gebäude, ' + Object.keys(sp.t).length + ' Truppentypen, ' + Object.keys(sp.s).length + ' Schiffstypen.'
-      + (altreich ? ' <span class="warn">Altreich: feste Basis angenommen (400 oder 500) – bitte im Feld „Basis“ prüfen.</span>' : ' <span class="warn">Kein Altreich erkannt – das Modell rechnet trotzdem mit der Altreich-Regel (siehe Hinweis).</span>') : '<span class="bad">Nichts erkannt – bitte den Text des ganzen Spähberichts einfügen.</span>';
+      + (altreich ? ' <span class="warn">Altreich: feste Basis angenommen (400 oder 500) – bitte im Feld „Basis“ prüfen.</span>' : '') : '<span class="bad">Nichts erkannt – bitte den Text des ganzen Spähberichts einfügen.</span>';
     calc();
   }
   $('spy_btn').onclick = () => applySpy(parseSpy($('spy_text').value));
@@ -429,7 +431,7 @@ const Model = (function () {
     return {
       att: { ships: readSet('a_s_', SHIP_IDS), troops: readSet('a_t_', TROOP_IDS), res: { speer: num('a_speer'), bogen: num('a_bogen') } },
       def: { ships: readSet('d_s_', SHIP_IDS), troops: readSet('d_t_', TROOP_IDS), schild: num('d_schild'), mauer: num('d_mauer'), hafen: num('d_hafen'),
-        base: num('d_base'), fixedBase: true, lager: num('d_lager'), stock: { gold: num('d_gold'), stone: num('d_stone'), wood: num('d_wood') } },
+        base: num('d_base'), fixedBase: $('d_fixed').checked, lager: num('d_lager'), stock: { gold: num('d_gold'), stone: num('d_stone'), wood: num('d_wood') } },
       opts: { chaos: num('chaos'), conquest: $('conquest').checked }
     };
   }
