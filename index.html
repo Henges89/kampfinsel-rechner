@@ -79,27 +79,33 @@ const Model = (function () {
   // ---- Einheiten & Schiffe -----------------------------------------------------------
   // Angriff/Verteidigung = Grundwerte ohne Forschung. Verteidigung Land: +2 je Schild-Stufe [V 3]
   // (Spionage-Bericht: Schild 10, Steinwerfer 28 = 8+20). Angriff: Speer +2, Bogen +3 je Stufe [V 2] (21.10.: 129.500).
+  // Kosten seit Patch v0.149.13 (28.10.2026, 15:50 UTC): "Truppen und Kriegsschiffe kosten nur noch die Hälfte"
+  // [Changelog]. Gilt für Truppen und Kriegsschiffe (war:true), nicht für Handels-/Spionageschiffe (unverändert)
+  // oder das Kolonisierungsschiff (eigene, wachsende Preisformel, kein Teil dieses Patches). Alte Preise (vor
+  // dem Patch, für die Modelltest-Kalibrierung an Altberichten) stehen in OLD_COST weiter unten.
   const TROOPS = {
-    steinwerfer:  { name: 'Steinwerfer',  att: 5,  def: 8,  cap: 15, cost: { g: 30,  s: 50,  w: 20  } }, // att [V 1] 20.10., def [V 3], cap [V 3], cost [F]
-    speertraeger: { name: 'Speerträger',  att: 15, def: 25, cap: 25, cost: { g: 80,  s: 100, w: 60  } }, // att [V 2], cap [V 2]
-    bogenschuetze:{ name: 'Bogenschütze', att: 35, def: 10, cap: 10, cost: { g: 120, s: 50,  w: 150 } }, // att [V 2]
-    katapult:     { name: 'Katapult',     att: 10, def: 5,  cap: 0,  cost: { g: 300, s: 500, w: 200 } }  // att [V 2], keine Forschung auf Angriff
+    steinwerfer:  { name: 'Steinwerfer',  att: 5,  def: 8,  cap: 15, cost: { g: 15,  s: 25,  w: 10  } }, // att [V 1] 20.10., def [V 3], cap [V 3], cost [V: Militär-Seite 31.10.]
+    speertraeger: { name: 'Speerträger',  att: 15, def: 25, cap: 25, cost: { g: 40,  s: 50,  w: 30  } }, // att [V 2], cap [V 2]
+    bogenschuetze:{ name: 'Bogenschütze', att: 35, def: 10, cap: 10, cost: { g: 60,  s: 25,  w: 75  } }, // att [V 2]
+    katapult:     { name: 'Katapult',     att: 10, def: 5,  cap: 0,  cost: { g: 150, s: 250, w: 100 } }  // att [V 2], keine Forschung auf Angriff
   };
   // war:true  = nimmt an Seeschlacht teil (Stärke + Verlustverteilung). Das Kolonisierungsschiff zählt mit (Angriff 30, Verteidigung 50) [V 1: 00e0ce8f 6030].
-  // KKS: att 20 [V 2: bfa4d9e9 9400, 129caae4], def 30 [V 3]; GKS: att 60 [V 5], def 80 [V 5]. Holzkosten KKS 300 / GKS 800 [V 12] (Treibgut).
+  // KKS: att 20 [V 2: bfa4d9e9 9400, 129caae4], def 30 [V 3]; GKS: att 60 [V 5], def 80 [V 5]. Holzkosten KKS 300 / GKS 800 [V 12] (Treibgut, Preis vor dem Halbierungs-Patch).
   const SHIPS = {
-    kkriegsschiff: { name: 'Kleines Kriegsschiff',  att: 20, def: 30, troops: 5,  war: true,  cap: 0,    cost: { g: 200,  s: 100,  w: 300  } },
-    gkriegsschiff: { name: 'Großes Kriegsschiff',   att: 60, def: 80, troops: 10, war: true,  cap: 0,    cost: { g: 600,  s: 300,  w: 800  } },
-    kolo:          { name: 'Kolonisierungsschiff',  att: 30, def: 50, troops: 0,  war: true,  cap: 0,    cost: { g: 50000, s: 30000, w: 40000 } }, // cost [V 1: Hafen-Seite]
-    khandelsschiff:{ name: 'Kleines Handelsschiff', att: 0,  def: 0,  troops: 0,  war: false, cap: 500,  cost: { g: 150,  s: 80,   w: 200  } }, // cap [V 3]
-    ghandelsschiff:{ name: 'Großes Handelsschiff',  att: 0,  def: 0, troops: 0,  war: false, cap: 2000, cost: { g: 500,  s: 250,  w: 600  } }, // cap [V 3]
-    spio:          { name: 'Spionageschiff',        att: 0,  def: 0,  troops: 0,  war: false, cap: 0,    cost: { g: 50,   s: 0,    w: 50   } },
+    kkriegsschiff: { name: 'Kleines Kriegsschiff',  att: 20, def: 30, troops: 5,  war: true,  cap: 0,    cost: { g: 100,  s: 50,   w: 150  } },
+    gkriegsschiff: { name: 'Großes Kriegsschiff',   att: 60, def: 80, troops: 10, war: true,  cap: 0,    cost: { g: 300,  s: 150,  w: 400  } },
+    kolo:          { name: 'Kolonisierungsschiff',  att: 30, def: 50, troops: 0,  war: true,  cap: 0,    cost: { g: 55000, s: 33000, w: 44000 } }, // cost [V 1: Hafen-Seite 31.10.]; eigene wachsende Preisformel, nicht vom Halbierungs-Patch betroffen
+    khandelsschiff:{ name: 'Kleines Handelsschiff', att: 0,  def: 0,  troops: 0,  war: false, cap: 500,  cost: { g: 150,  s: 80,   w: 200  } }, // cap [V 3]; Preis unverändert vom Patch
+    ghandelsschiff:{ name: 'Großes Handelsschiff',  att: 0,  def: 0, troops: 0,  war: false, cap: 2000, cost: { g: 500,  s: 250,  w: 600  } }, // cap [V 3]; Preis unverändert vom Patch
+    spio:          { name: 'Spionageschiff',        att: 0,  def: 0,  troops: 0,  war: false, cap: 0,    cost: { g: 50,   s: 0,    w: 50   } }, // Preis unverändert vom Patch
     // Kriegsakademie-Schiffe: exakte Werte von /game/island/harbour (22.10.2026) [V 1].
     // Zerstörer-Angriff war vor dem Doktrinen-Update 60 (dcc44917, 8.10.), danach 70 (Hinweis des Spielers); Gegenprobe 15*45 + 50*15 = 1425 (a6496bde) stimmt mit den Seitenwerten.
-    zerstoerer:    { name: 'Zerstörer',             att: 70, def: 45, troops: 5, war: true,  cap: 0, cost: { g: 650, s: 350, w: 700 } },
-    enterbrigg:    { name: 'Enterbrigg',            att: 45, def: 15, troops: 2, war: true,  cap: 0, cost: { g: 500, s: 200, w: 600 } },
-    feuerschiff:   { name: 'Feuerschiff',           att: 30, def: 10, troops: 0, war: true,  cap: 0, cost: { g: 300, s: 160, w: 400 } }
+    zerstoerer:    { name: 'Zerstörer',             att: 70, def: 45, troops: 5, war: true,  cap: 0, cost: { g: 325, s: 175, w: 350 } },
+    enterbrigg:    { name: 'Enterbrigg',            att: 45, def: 15, troops: 2, war: true,  cap: 0, cost: { g: 250, s: 100, w: 300 } },
+    feuerschiff:   { name: 'Feuerschiff',           att: 30, def: 10, troops: 0, war: true,  cap: 0, cost: { g: 150, s: 80,  w: 200 } }
   };
+  // Alte Preise (vor dem Halbierungs-Patch, für Treibgut-Kalibrierung an Altberichten < 28.10.2026).
+  const OLD_SHIP_WOOD = { kkriegsschiff: 300, gkriegsschiff: 800, zerstoerer: 700, enterbrigg: 600, feuerschiff: 400, khandelsschiff: 200, ghandelsschiff: 600, kolo: 40000 };
   const NAME2ID = {};
   Object.entries(TROOPS).forEach(([k, v]) => NAME2ID[v.name] = k);
   Object.entries(SHIPS).forEach(([k, v]) => NAME2ID[v.name] = k);
@@ -285,7 +291,10 @@ const Model = (function () {
   function capacity(ships, troopsLeftFull) {
     return sum(ships, (k, n) => SHIPS[k] ? n * SHIPS[k].cap : 0) + sum(troopsLeftFull, (k, n) => TROOPS[k] ? n * TROOPS[k].cap : 0);
   }
-  const driftwood = lostShips => K.DRIFTWOOD * sum(lostShips, (k, n) => SHIPS[k] && SHIPS[k].cost ? n * SHIPS[k].cost.w : 0);
+  const driftwood = (lostShips, woodTable) => K.DRIFTWOOD * sum(lostShips, (k, n) => {
+    const w = woodTable ? woodTable[k] : (SHIPS[k] && SHIPS[k].cost ? SHIPS[k].cost.w : undefined);
+    return w !== undefined ? n * w : 0;
+  });
 
   // ---- Gesamtsimulation: Phasen 1-5 hintereinander -------------------------------------------------
   // inp = { att:{ships,troops,res:{speer,bogen}}, def:{ships,troops,schild,mauer,hafen,base,fixedBase,lager,stock:{gold,stone,wood}, siege:{name,level}},
@@ -361,7 +370,7 @@ const Model = (function () {
 
   return { simulate, TROOPS, SHIPS, NAME2ID, WAR_IDS, K, rhu, distribute, storeCap, protection,
     seaAtt, seaDef, harborStrength, landAtt, landDef, baseFromBuildings, sea1, sea2, troopSpace, drown, land,
-    capitulates, siege, splitLoot, capacity, driftwood, hasUnknown };
+    capitulates, siege, splitLoot, capacity, driftwood, hasUnknown, OLD_SHIP_WOOD };
 })();
 </script>
 
