@@ -39,6 +39,9 @@ h3{font-size:14px;margin:12px 0 2px}
 <div id="calc" class="cols">
 <div class="card">
 <h2 style="margin-top:0">Angreifer (du)</h2>
+<h3>Flotten-Übersicht einfügen</h3>
+<textarea id="fleet_text" placeholder="Ganzen Text der Flotten-Übersicht hierher kopieren (Abschnitte „Flotte im Hafen“ und „Stationierte Truppen“)"></textarea>
+<div><button id="fleet_btn">Einlesen</button> <span id="fleet_info" class="sub"></span></div>
 <h3>Schiffe</h3><div class="fields" id="a_ships"></div>
 <h3>Truppen</h3><div class="fields" id="a_troops"></div>
 <h3>Forschung</h3><div class="fields"><label>Speer-Stufe<input type="text" id="a_speer" value="10"></label><label>Bogen-Stufe<input type="text" id="a_bogen" value="10"></label>
@@ -445,6 +448,40 @@ const Model = (function () {
     calc();
   }
   $('spy_btn').onclick = () => applySpy(parseSpy($('spy_text').value));
+
+  // ---- Flotten-Übersicht einlesen (Text von der Flotte-Seite kopiert) ------------------------
+  // "Flotte im Hafen" listet nur Schiffstypen mit Bestand > 0 (0er-Typen fehlen komplett, siehe
+  // Katapult-Ziel-Liste zum Vergleich) -> alle nicht gefundenen Typen werden explizit auf 0 gesetzt.
+  function parseFleet(text) {
+    const out = { s: {}, t: {}, sawShips: false, sawTroops: false };
+    let sec = null;
+    text.split(/\r?\n/).forEach(raw => {
+      const line = raw.replace(/ /g, ' ').trim();
+      if (!line) return;
+      if (line === 'Flotte im Hafen') { sec = 's'; out.sawShips = true; return; }
+      if (line === 'Stationierte Truppen') { sec = 't'; out.sawTroops = true; return; }
+      if (/^(Ausgehende Flotten|Marktflotten|Eingehende Flotten|Beobachtete Flottenbewegungen|Flotte senden)$/.test(line)) { sec = null; return; }
+      if (!sec) return;
+      const ids = sec === 's' ? SHIP_IDS : TROOP_IDS;
+      const table = sec === 's' ? M.SHIPS : M.TROOPS;
+      const k = ids.find(k => line.startsWith(table[k].name));
+      if (!k) return;
+      const m = line.slice(table[k].name.length).match(/^[\t ]+(\d[\d.]*)\b/);
+      if (m) out[sec][k] = parseInt(m[1].replace(/\./g, ''), 10);
+    });
+    return out;
+  }
+  function applyFleet(fp) {
+    if (fp.sawShips) SHIP_IDS.forEach(k => $('a_s_' + k).value = fp.s[k] || 0);
+    if (fp.sawTroops) TROOP_IDS.forEach(k => $('a_t_' + k).value = fp.t[k] || 0);
+    const nShips = Object.keys(fp.s).length, nTroops = Object.keys(fp.t).length;
+    $('fleet_info').innerHTML = (fp.sawShips || fp.sawTroops)
+      ? 'Eingelesen: ' + nShips + ' Schiffstypen, ' + nTroops + ' Truppentypen.'
+      : '<span class="bad">Nichts erkannt – bitte den Text der Flotten-Übersicht einfügen (Abschnitte „Flotte im Hafen“ und „Stationierte Truppen“).</span>';
+    if (fp.sawShips || fp.sawTroops) { $('fleet_text').value = ''; save(); }
+    calc();
+  }
+  $('fleet_btn').onclick = () => applyFleet(parseFleet($('fleet_text').value));
 
   // ---- Rechnen und anzeigen ------------------------------------------------------------------
   function collect() {
