@@ -60,7 +60,7 @@ h3{font-size:14px;margin:12px 0 2px}
 <p class="sub">Aktivieren bei Altreich/Steuermannslos. Bei aktiv oder schlummernd nicht aktivieren.</p>
 <h3>Truppen</h3><div class="fields" id="d_troops"></div>
 <h3>Schiffe</h3><div class="fields" id="d_ships"></div>
-<h3>Vorrat im Lager</h3><div class="fields"><label>Gold<input type="text" id="d_gold" value="0"></label><label>Stein<input type="text" id="d_stone" value="0"></label><label>Holz<input type="text" id="d_wood" value="0"></label></div>
+<h3>Vorrat im Lager</h3><div class="fields"><label>Gold<input type="text" id="d_gold" value="0" readonly></label><label>Stein<input type="text" id="d_stone" value="0" readonly></label><label>Holz<input type="text" id="d_wood" value="0" readonly></label></div><p class="sub">Wird aus dem Spähbericht übernommen, nicht von Hand editierbar.</p>
 </div>
 </div>
 <div id="out"></div>
@@ -343,7 +343,9 @@ const Model = (function () {
       const traders = capacity(ships, {}), troopCap = capacity({}, full);
       const capTotal = traders + troopCap;
       const avail = {};
-      ['gold', 'stone', 'wood'].forEach(k => avail[k] = Math.max(0, ((def.stock || {})[k] || 0) - protection(def.lager || 0)));
+      // availOverride: die vom Spähbericht selbst gemeldete "davon plünderbar"-Menge, falls bekannt -
+      // genauer als unsere eigene Lagerhaus-Schätzung, also wenn vorhanden direkt verwenden statt neu zu schätzen.
+      ['gold', 'stone', 'wood'].forEach(k => avail[k] = def.availOverride ? (def.availOverride[k] || 0) : Math.max(0, ((def.stock || {})[k] || 0) - protection(def.lager || 0)));
       const loot = splitLoot(capTotal, avail);
       const lootTotal = loot.gold + loot.stone + loot.wood;
       const sunk = {}; add(sunk, R.attLostShips); add(sunk, R.defLostShips);
@@ -449,7 +451,8 @@ const Model = (function () {
     return {
       att: { ships: readSet('a_s_', SHIP_IDS), troops: readSet('a_t_', TROOP_IDS), res: { speer: num('a_speer'), bogen: num('a_bogen') } },
       def: { ships: readSet('d_s_', SHIP_IDS), troops: readSet('d_t_', TROOP_IDS), schild: num('d_schild'), mauer: num('d_mauer'), hafen: num('d_hafen'),
-        base: num('d_base'), fixedBase: $('d_fixed').checked, lager: num('d_lager'), stock: { gold: num('d_gold'), stone: num('d_stone'), wood: num('d_wood') } },
+        base: num('d_base'), fixedBase: $('d_fixed').checked, lager: num('d_lager'), stock: { gold: num('d_gold'), stone: num('d_stone'), wood: num('d_wood') },
+        availOverride: spyPlunder },
       opts: { chaos: num('chaos'), conquest: $('conquest').checked }
     };
   }
@@ -470,16 +473,14 @@ const Model = (function () {
       + (R.p3.attWins ? 'Angreifer gewinnt' : '<b class="bad">Verteidiger gewinnt</b> <span class="warn">(Formel für diesen Fall nur angenommen)</span>') + dr);
     if (!R.p3.attWins) { row('Ende', 'Der Angriff scheitert an Land: keine Beute.', 'bad'); return rows; }
     const p5 = R.p5;
-    // Der Spähbericht meldet "davon plünderbar" selbst (spyPlunder) – das ist die vom Spiel bestätigte Menge
-    // und genauer als unsere eigene Lagerhaus-Schätzung (p5.avail); wenn vorhanden, als Basis für die Trageempfehlung nehmen.
-    const availForCap = spyPlunder || p5.avail;
-    const availTotal = RES.reduce((s, [k]) => s + availForCap[k], 0);
+    const availTotal = RES.reduce((s, [k]) => s + p5.avail[k], 0);
     const missingCap = availTotal - p5.capacity;
-    row('5 Plünderung', 'Tragekapazität ' + fmt(p5.capacity) + ' (davon Handelsschiffe ' + fmt(p5.capTraders) + '), plünderbar ' + RES.map(([k, n]) => n + ' ' + fmt(p5.avail[k])).join(' · ')
-      + (spyPlunder ? ' <span class="sub">(laut Bericht: ' + RES.map(([k, n]) => n + ' ' + fmt(spyPlunder[k])).join(' · ') + ')</span>' : '')
+    row('5 Plünderung', 'Tragekapazität ' + fmt(p5.capacity) + ' (davon Handelsschiffe ' + fmt(p5.capTraders) + ')'
+      + '<br>Vorrat ' + RES.map(([k, n]) => n + ' ' + fmt(inp.def.stock[k])).join(' · ') + ', davon plünderbar ' + RES.map(([k, n]) => n + ' ' + fmt(p5.avail[k])).join(' · ')
+        + (spyPlunder ? ' <span class="sub">(laut Spähbericht)</span>' : ' <span class="sub">(geschätzt, ohne Spähbericht)</span>')
       + '<br><b>Beute: ' + RES.map(([k, n]) => n + ' ' + fmt(p5.loot[k])).join(' · ') + ' = ' + fmt(p5.lootTotal) + '</b>'
       + (p5.drift > 0 ? '<br>Treibgut: ' + fmt(p5.drift) + ' Holz' : '')
-      + (missingCap > 0 ? '<br><span class="warn">Für die volle Beute fehlen ' + fmt(missingCap) + ' Tragekapazität' + (spyPlunder ? ' (laut Bericht)' : '') + ' – zusätzlich ' + Math.ceil(missingCap / M.SHIPS.ghandelsschiff.cap) + ' Große Handelsschiffe (oder ' + Math.ceil(missingCap / M.SHIPS.khandelsschiff.cap) + ' Kleine) mitschicken.</span>' : ''));
+      + (missingCap > 0 ? '<br><span class="warn">Für die volle Beute fehlen ' + fmt(missingCap) + ' Tragekapazität – zusätzlich ' + Math.ceil(missingCap / M.SHIPS.ghandelsschiff.cap) + ' Große Handelsschiffe (oder ' + Math.ceil(missingCap / M.SHIPS.khandelsschiff.cap) + ' Kleine) mitschicken.</span>' : ''));
     return rows;
   }
 
