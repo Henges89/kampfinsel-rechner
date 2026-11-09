@@ -414,7 +414,8 @@ const Model = (function () {
       let m = line.match(/^Ziel:\s*(.+)$/); if (m) { out.target = m[1].trim(); return; }
       const head = Object.keys(SECTIONS).find(h => line === h || (line.startsWith(h) && /^(Keine|Stufe|Einheit|Schiff|Technologie|Ressource|Gebäude)/.test(line.slice(h.length))));
       if (head) { sec = SECTIONS[head]; if (!/\d/.test(line)) return; }
-      m = line.match(/^([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\- ]*?)\s*[\t ]\s*(\d[\d.]*)$/) || line.match(/^([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\-]*(?: [A-Za-zÄÖÜäöüß\-]+)*?)(\d[\d.]*)$/);
+      // Ressourcen-Zeilen haben seit [Patch] eine dritte Spalte "davon plünderbar" (zweite Zahl) -> optional mitmatchen, aber ignorieren.
+      m = line.match(/^([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\- ]*?)\s*[\t ]\s*(\d[\d.]*)(?:[\t ]\s*\d[\d.]*)?$/) || line.match(/^([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\-]*(?: [A-Za-zÄÖÜäöüß\-]+)*?)(\d[\d.]*)$/);
       if (m && sec) out[sec][m[1].trim()] = parseInt(m[2].replace(/\./g, ''), 10);
     });
     return out;
@@ -432,6 +433,7 @@ const Model = (function () {
     const have = Object.keys(sp.b).length;
     $('spy_info').innerHTML = have ? 'Eingelesen: <b>' + (sp.target || 'Ziel unbekannt') + '</b> – ' + have + ' Gebäude, ' + Object.keys(sp.t).length + ' Truppentypen, ' + Object.keys(sp.s).length + ' Schiffstypen.'
       + (altreich ? ' <span class="warn">Altreich: feste Basis angenommen (400 oder 500) – bitte im Feld „Basis“ prüfen.</span>' : '') : '<span class="bad">Nichts erkannt – bitte den Text des ganzen Spähberichts einfügen.</span>';
+    if (have) $('spy_text').value = '';   // erfolgreich eingelesen -> Feld leeren, damit der alte Bericht nicht stehen bleibt
     calc();
   }
   $('spy_btn').onclick = () => applySpy(parseSpy($('spy_text').value));
@@ -462,9 +464,12 @@ const Model = (function () {
       + (R.p3.attWins ? 'Angreifer gewinnt' : '<b class="bad">Verteidiger gewinnt</b> <span class="warn">(Formel für diesen Fall nur angenommen)</span>') + dr);
     if (!R.p3.attWins) { row('Ende', 'Der Angriff scheitert an Land: keine Beute.', 'bad'); return rows; }
     const p5 = R.p5;
+    const availTotal = RES.reduce((s, [k]) => s + p5.avail[k], 0);
+    const missingCap = availTotal - p5.capacity;
     row('5 Plünderung', 'Tragekapazität ' + fmt(p5.capacity) + ' (davon Handelsschiffe ' + fmt(p5.capTraders) + '), plünderbar ' + RES.map(([k, n]) => n + ' ' + fmt(p5.avail[k])).join(' · ')
       + '<br><b>Beute: ' + RES.map(([k, n]) => n + ' ' + fmt(p5.loot[k])).join(' · ') + ' = ' + fmt(p5.lootTotal) + '</b>'
-      + (p5.drift > 0 ? '<br>Treibgut: ' + fmt(p5.drift) + ' Holz' : ''));
+      + (p5.drift > 0 ? '<br>Treibgut: ' + fmt(p5.drift) + ' Holz' : '')
+      + (missingCap > 0 ? '<br><span class="warn">Für die volle Beute fehlen ' + fmt(missingCap) + ' Tragekapazität – zusätzlich ' + Math.ceil(missingCap / M.SHIPS.ghandelsschiff.cap) + ' Große Handelsschiffe (oder ' + Math.ceil(missingCap / M.SHIPS.khandelsschiff.cap) + ' Kleine) mitschicken.</span>' : ''));
     return rows;
   }
 
