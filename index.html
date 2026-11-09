@@ -499,15 +499,20 @@ const Model = (function () {
   function phaseRows(R, inp) {
     const rows = [];
     const row = (t, body, cls) => rows.push('<tr><td><b>' + t + '</b></td><td class="' + (cls || '') + '">' + body + '</td></tr>');
+    if (Object.keys(R.drowned).length) {
+      // Trageplatz nach eventuellen Schiffsverlusten in Phase 1/2 (R.shipsLeft) – nicht die volle Flotte,
+      // sonst passt "Truppen angegeben minus Platz" nicht mehr zur tatsächlich ertrunkenen Summe.
+      const cap = M.troopSpace(R.shipsLeft), total = Object.values(inp.att.troops).reduce((a, b) => a + b, 0);
+      row('Kapazität', '<span class="bad">Zu wenig Trageplatz auf den Kriegsschiffen (' + fmt(total) + ' Truppen angegeben, Platz für ' + fmt(cap) + ' nach Schiffsverlusten) – diese Truppen können nicht mitfahren und bleiben zu Hause: ' + lossList(R.drowned) + '</span>', 'bad');
+    }
     if (R.p1) row('1 Seeschlacht', 'Angriff ' + fmt(R.p1.A) + ' gegen Verteidigung ' + fmt(R.p1.D) + ' → ' + (R.p1.attWins ? 'Angreifer gewinnt' : '<b class="bad">Verteidiger gewinnt</b>'));
     else row('1 Seeschlacht', 'Keine – der Verteidiger hat keine Kriegsschiffe.');
     if (R.stop === 'sea') { row('Ende', 'Der Angriff scheitert auf See. Ob und ab wann ein Geordneter Rückzug greift, ist nicht bekannt (keine Daten).', 'bad'); return rows; }
     if (R.p2) row('2 Hafenverteidigung', 'Hafen ' + fmt(R.p2.H) + ' gegen deine Flotte ' + fmt(R.p2.A2) + ' → ' + (R.p2.breakthrough ? 'durchgebrochen' : '<b class="bad">abgewehrt</b>'));
     else row('2 Hafenverteidigung', 'Keine (Hafen Stufe 0 oder keine Kriegsschiffe mehr).');
     if (R.stop === 'harbor') { row('Ende', 'Der Hafen hält. Angenommen: die Kriegsschiffe gehen verloren, Truppen kommen nicht an [Annahme].', 'bad'); return rows; }
-    const dr = Object.keys(R.drowned).length ? '<br><span class="warn">Ertrunken (zu wenig Platz auf den Schiffen): ' + lossList(R.drowned) + '</span>' : '';
     row('3 Landkampf', 'Angriff ' + fmt(R.p3.A) + ' gegen Verteidigung ' + fmt(R.p3.D) + ' (' + fmt(R.D3.raw) + ' ' + (inp.def.fixedBase ? 'ohne' : 'vor') + ' Verteidigervorteil) → '
-      + (R.p3.attWins ? 'Angreifer gewinnt' : '<b class="bad">Verteidiger gewinnt</b> <span class="warn">(Formel für diesen Fall nur angenommen)</span>') + dr);
+      + (R.p3.attWins ? 'Angreifer gewinnt' : '<b class="bad">Verteidiger gewinnt</b> <span class="warn">(Formel für diesen Fall nur angenommen)</span>'));
     if (!R.p3.attWins) { row('Ende', 'Der Angriff scheitert an Land: keine Beute.', 'bad'); return rows; }
     const p5 = R.p5;
     const availTotal = RES.reduce((s, [k]) => s + p5.avail[k], 0);
